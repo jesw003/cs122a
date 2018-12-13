@@ -1,0 +1,97 @@
+//built in 
+#include <avr/io.h>
+#include <util/delay.h>
+#include <avr/interrupt.h>
+#include <math.h>
+//ADC code from extremeelectronics code;
+void InitADC()
+{
+        ADMUX=(1<<REFS0);                                 // For Aref=AVcc;
+        ADCSRA=(1<<ADEN)|(1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0);
+}
+unsigned long avr_timer_M = 1;
+unsigned long avr_timer_cntcurr = 0;
+uint16_t ReadADC(uint8_t ch)
+{
+        ch=ch&0b00000111;
+        ADMUX|=ch;
+        ADCSRA|=(1<<ADSC);
+        while(!(ADCSRA & (1<<ADIF)));
+        ADCSRA|=(1<<ADIF);
+        return(ADC);
+} 
+uint16_t adc0_value;
+uint16_t adc1_value;
+unsigned int pwm0;
+unsigned int pwm1;
+unsigned int pwm0_initial;
+unsigned int pwm1_initial;
+void init()
+{
+        uint16_t adc0_value=0;
+        uint16_t adc1_value=0;
+        unsigned int pwm0=0;
+        unsigned int pwm1=0;
+        unsigned int pwm0_initial=0;
+        unsigned int pwm1_initial=0;
+        DDRB = 0xFF;PORTB = 0x00;
+        TCCR1A|=(1<<COM1A1)|(1<<COM1B1)|(1<<WGM11);
+        TCCR1B|=(1<<WGM13)|(1<<WGM12)|(1<<CS11)|(1<<CS10);
+        DDRD|=(1<<PORTD4)|(1<<PORTD5);
+        ICR1=4999;
+}
+
+
+enum States{init_arm,start_up_arm} arm_states;
+        void tick()
+        {
+                switch(arm_states)
+                {
+                case init_arm:
+                        arm_states=start_up_arm;
+                        break;
+                case start_up_arm:
+                        arm_states=start_up_arm;
+                        break;
+                }
+                switch(arm_states)
+                {
+                        case init_arm:
+                                arm_states=start_up_arm;
+                                break;
+                        case start_up_arm:
+                                adc0_value=ReadADC(0);//base servo
+                                adc1_value=ReadADC(1);//0 to 1024        
+                                pwm0_initial=(int)(0.4*(float)adc0_value)+80;
+                                pwm1_initial=(int)(0.4*(float)adc1_value) + 80;
+                                pwm0 = pwm0_initial;
+                                pwm1=  pwm1_initial;
+                                OCR1A=pwm1;
+                                OCR1B=pwm0;
+                                break;
+                }
+        }
+void Wait()
+{
+        uint8_t i;
+        for(i=0;i<50;i++)
+        {
+                _delay_loop_2(0);
+                _delay_loop_2(0);
+        }
+}
+
+
+        //first statement for output
+void main()
+{
+        Wait();
+        init();
+        arm_states=init_arm;
+        while(1)
+        {
+                InitADC();
+                tick();
+                _delay_ms(50);
+        }
+}
